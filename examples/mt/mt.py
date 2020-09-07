@@ -52,7 +52,11 @@ from allennlp.training.trainer import GradientDescentTrainer
 EN_EMBEDDING_DIM = 256
 ZH_EMBEDDING_DIM = 256
 HIDDEN_DIM = 256
-CUDA_DEVICE = 0
+
+if torch.cuda.device_count():
+    CUDA_DEVICE = torch.cuda.current_device()
+else:
+    CUDA_DEVICE = -1
 
 
 def read_data(reader: DatasetReader) -> Tuple[Iterable[Instance], Iterable[Instance]]:
@@ -104,6 +108,7 @@ def build_trainer(
         validation_data_loader=dev_loader,
         num_epochs=5,
         optimizer=optimizer,
+        cuda_device=CUDA_DEVICE,
     )
     return trainer
 
