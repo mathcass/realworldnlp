@@ -101,8 +101,8 @@ def write_tsv(translations):
         translations (list): list of sentence pairs returned by generate_translation_pairs()
     """
     for sent1, sent2 in translations:
-        sent1_text = '{sent_id}\t{lang}\t{text}'.format(**sent1)
-        sent2_text = '{sent_id}\t{lang}\t{text}'.format(**sent2)
+        sent1_text = '{text}'.format(**sent1)
+        sent2_text = '{text}'.format(**sent2)
         print("%s\t%s" % (sent1_text, sent2_text))
 
 
