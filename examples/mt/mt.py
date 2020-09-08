@@ -57,13 +57,6 @@ EN_EMBEDDING_DIM = 256
 ZH_EMBEDDING_DIM = 256
 HIDDEN_DIM = 256
 
-if torch.cuda.device_count():
-    CUDA_DEVICE = torch.cuda.current_device()
-    logging.info("Using cuda device")
-else:
-    CUDA_DEVICE = -1
-    logging.info("Using CPU")
-
 
 def read_data(reader: DatasetReader) -> Tuple[Iterable[Instance], Iterable[Instance]]:
     logging.info("Reading data")
@@ -114,7 +107,6 @@ def build_trainer(
         validation_data_loader=dev_loader,
         num_epochs=1,
         optimizer=optimizer,
-        cuda_device=CUDA_DEVICE,
     )
     return trainer
 
