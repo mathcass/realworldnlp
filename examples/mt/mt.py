@@ -172,14 +172,14 @@ def run_training_loop():
         dev_loader
     )
 
-    for i in range(50):
+    for i in range(25):
         logging.info('Started training epoch: {}'.format(i))
         trainer.train()
         logging.info('Finished training epoch: {}'.format(i))
 
-        predictor = Seq2SeqPredictor(model)
+        predictor = Seq2SeqPredictor(model, dataset_reader)
 
-        for instance in itertools.islice(validation_dataset, 10):
+        for instance in itertools.islice(dev_data, 10):
             print('SOURCE:', instance.fields['source_tokens'].tokens)
             print('GOLD:', instance.fields['target_tokens'].tokens)
             print('PRED:', predictor.predict_instance(instance)['predicted_tokens'])
