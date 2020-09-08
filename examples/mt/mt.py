@@ -55,6 +55,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 EN_EMBEDDING_DIM = 256
 ZH_EMBEDDING_DIM = 256
+SERIALIZATION_DIR = "./checkpoints/"
 HIDDEN_DIM = 256
 
 
@@ -164,27 +165,24 @@ def run_training_loop():
     # batching code.
     train_loader, dev_loader = build_data_loaders(train_data, dev_data)
 
-    # You obviously won't want to create a temporary file for your training
-    # results, but for execution in binder for this guide, we need to do this.
-    with tempfile.TemporaryDirectory() as serialization_dir:
-        trainer = build_trainer(
-            model,
-            serialization_dir,
-            train_loader,
-            dev_loader
-        )
+    trainer = build_trainer(
+        model,
+        SERIALIZATION_DIR,
+        train_loader,
+        dev_loader
+    )
 
-        for i in range(50):
-            logging.info('Started training epoch: {}'.format(i))
-            trainer.train()
-            logging.info('Finished training epoch: {}'.format(i))
+    for i in range(50):
+        logging.info('Started training epoch: {}'.format(i))
+        trainer.train()
+        logging.info('Finished training epoch: {}'.format(i))
 
-            predictor = Seq2SeqPredictor(model, reader)
+        predictor = Seq2SeqPredictor(model)
 
-            for instance in itertools.islice(validation_dataset, 10):
-                print('SOURCE:', instance.fields['source_tokens'].tokens)
-                print('GOLD:', instance.fields['target_tokens'].tokens)
-                print('PRED:', predictor.predict_instance(instance)['predicted_tokens'])
+        for instance in itertools.islice(validation_dataset, 10):
+            print('SOURCE:', instance.fields['source_tokens'].tokens)
+            print('GOLD:', instance.fields['target_tokens'].tokens)
+            print('PRED:', predictor.predict_instance(instance)['predicted_tokens'])
 
 
 if __name__ == '__main__':
