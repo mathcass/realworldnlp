@@ -1,5 +1,6 @@
 import itertools
 import tempfile
+import logging
 from typing import Dict, Iterable, List, Tuple
 
 import torch
@@ -49,18 +50,23 @@ from allennlp_models.generation.predictors import Seq2SeqPredictor
 
 from allennlp.training.trainer import GradientDescentTrainer
 
+
+logging.basicConfig(level=logging.DEBUG)
+
 EN_EMBEDDING_DIM = 256
 ZH_EMBEDDING_DIM = 256
 HIDDEN_DIM = 256
 
 if torch.cuda.device_count():
     CUDA_DEVICE = torch.cuda.current_device()
+    logging.info("Using cuda device")
 else:
     CUDA_DEVICE = -1
+    logging.info("Using CPU")
 
 
 def read_data(reader: DatasetReader) -> Tuple[Iterable[Instance], Iterable[Instance]]:
-    print("Reading data")
+    logging.info("Reading data")
     train_data = reader.read('data/tatoeba/tatoeba.eng_cmn.train.tsv')
     validation_data = reader.read('data/tatoeba/tatoeba.eng_cmn.dev.tsv')
     return train_data, validation_data
@@ -75,7 +81,7 @@ def build_dataset_reader() -> DatasetReader:
 
 
 def build_vocab(instances: Iterable[Instance]) -> Vocabulary:
-    print("Building the vocabulary")
+    logging.info("Building the vocabulary")
     return Vocabulary.from_instances(instances)
 
 
@@ -106,11 +112,43 @@ def build_trainer(
         serialization_dir=serialization_dir,
         data_loader=train_loader,
         validation_data_loader=dev_loader,
-        num_epochs=5,
+        num_epochs=1,
         optimizer=optimizer,
         cuda_device=CUDA_DEVICE,
     )
     return trainer
+
+
+
+
+def build_model(vocab: Vocabulary) -> Model:
+    logging.info("Building the model")
+    # vocab_size = vocab.get_vocab_size("tokens")
+    # embedder = BasicTextFieldEmbedder(
+    #     {"tokens": Embedding(embedding_dim=10, num_embeddings=vocab_size)})
+    # encoder = BagOfEmbeddingsEncoder(embedding_dim=10)
+    # return SimpleClassifier(vocab, embedder, encoder)
+
+    en_embedding = Embedding(num_embeddings=vocab.get_vocab_size('tokens'),
+                             embedding_dim=EN_EMBEDDING_DIM)
+    # encoder = PytorchSeq2SeqWrapper(
+    #     torch.nn.LSTM(EN_EMBEDDING_DIM, HIDDEN_DIM, batch_first=True))
+    encoder = StackedSelfAttentionEncoder(input_dim=EN_EMBEDDING_DIM, hidden_dim=HIDDEN_DIM, projection_dim=128, feedforward_hidden_dim=128, num_layers=1, num_attention_heads=8)
+
+    source_embedder = BasicTextFieldEmbedder({"tokens": en_embedding})
+
+    # attention = LinearAttention(HIDDEN_DIM, HIDDEN_DIM, activation=Activation.by_name('tanh')())
+    # attention = BilinearAttention(HIDDEN_DIM, HIDDEN_DIM)
+    attention = DotProductAttention()
+
+    max_decoding_steps = 20   # TODO: make this variable
+    model = SimpleSeq2Seq(vocab, source_embedder, encoder, max_decoding_steps,
+                          target_embedding_dim=ZH_EMBEDDING_DIM,
+                          target_namespace='target_tokens',
+                          attention=attention,
+                          beam_size=8,
+                          use_bleu=True)
+    return model
 
 
 def run_training_loop():
@@ -143,74 +181,19 @@ def run_training_loop():
             train_loader,
             dev_loader
         )
-        print("Starting training")
-        trainer.train()
-        print("Finished training")
 
+        for i in range(50):
+            logging.info('Started training epoch: {}'.format(i))
+            trainer.train()
+            logging.info('Finished training epoch: {}'.format(i))
 
-def build_model(vocab: Vocabulary) -> Model:
-    print("Building the model")
-    # vocab_size = vocab.get_vocab_size("tokens")
-    # embedder = BasicTextFieldEmbedder(
-    #     {"tokens": Embedding(embedding_dim=10, num_embeddings=vocab_size)})
-    # encoder = BagOfEmbeddingsEncoder(embedding_dim=10)
-    # return SimpleClassifier(vocab, embedder, encoder)
+            predictor = SimpleSeq2SeqPredictor(model, reader)
 
-    en_embedding = Embedding(num_embeddings=vocab.get_vocab_size('tokens'),
-                             embedding_dim=EN_EMBEDDING_DIM)
-    # encoder = PytorchSeq2SeqWrapper(
-    #     torch.nn.LSTM(EN_EMBEDDING_DIM, HIDDEN_DIM, batch_first=True))
-    encoder = StackedSelfAttentionEncoder(input_dim=EN_EMBEDDING_DIM, hidden_dim=HIDDEN_DIM, projection_dim=128, feedforward_hidden_dim=128, num_layers=1, num_attention_heads=8)
-
-    source_embedder = BasicTextFieldEmbedder({"tokens": en_embedding})
-
-    # attention = LinearAttention(HIDDEN_DIM, HIDDEN_DIM, activation=Activation.by_name('tanh')())
-    # attention = BilinearAttention(HIDDEN_DIM, HIDDEN_DIM)
-    attention = DotProductAttention()
-
-    max_decoding_steps = 20   # TODO: make this variable
-    model = SimpleSeq2Seq(vocab, source_embedder, encoder, max_decoding_steps,
-                          target_embedding_dim=ZH_EMBEDDING_DIM,
-                          target_namespace='target_tokens',
-                          attention=attention,
-                          beam_size=8,
-                          use_bleu=True)
-    return model
-
-
-def main():
-    run_training_loop()
-
-    # optimizer = optim.Adam(model.parameters())
-    # # iterator = BucketIterator(batch_size=32, sorting_keys=[("source_tokens", "num_tokens")])
-    # iterator = BucketBatchSampler(train_dataset, batch_size=32,
-    #                               sorting_keys=[("source_tokens", "num_tokens")])
-
-    # train_dataset.index_with(vocab)
-    # validation_dataset.index_with(vocab)
-
-    # trainer = GradientDescentTrainer(
-    #     model=model,
-    #     optimizer=optimizer,
-    #     # iterator=iterator,
-    #     data_loader=train_dataset,
-    #     validation_data_loader=validation_dataset,
-    #     num_epochs=1,
-    #     # cuda_device=CUDA_DEVICE,
-    # )
-
-    # for i in range(50):
-    #     print('Epoch: {}'.format(i))
-    #     trainer.train()
-
-    #     predictor = SimpleSeq2SeqPredictor(model, reader)
-
-    #     for instance in itertools.islice(validation_dataset, 10):
-    #         print('SOURCE:', instance.fields['source_tokens'].tokens)
-    #         print('GOLD:', instance.fields['target_tokens'].tokens)
-    #         print('PRED:', predictor.predict_instance(instance)['predicted_tokens'])
+            for instance in itertools.islice(validation_dataset, 10):
+                print('SOURCE:', instance.fields['source_tokens'].tokens)
+                print('GOLD:', instance.fields['target_tokens'].tokens)
+                print('PRED:', predictor.predict_instance(instance)['predicted_tokens'])
 
 
 if __name__ == '__main__':
-    # main()
     run_training_loop()
