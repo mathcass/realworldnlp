@@ -179,7 +179,7 @@ def run_training_loop():
             trainer.train()
             logging.info('Finished training epoch: {}'.format(i))
 
-            predictor = SimpleSeq2SeqPredictor(model, reader)
+            predictor = Seq2SeqPredictor(model, reader)
 
             for instance in itertools.islice(validation_dataset, 10):
                 print('SOURCE:', instance.fields['source_tokens'].tokens)
